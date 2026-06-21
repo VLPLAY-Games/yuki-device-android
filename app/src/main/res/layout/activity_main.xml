@@ -1,50 +1,311 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:padding="16dp">
 
-    <EditText
-        android:id="@+id/etServer"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="ws://192.168.1.100:8000/device" />
+        android:orientation="vertical">
 
-    <EditText
-        android:id="@+id/etDeviceId"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="android-phone" />
+        <!-- Server Connection Group -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Server Connection"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp" />
 
-    <EditText
-        android:id="@+id/etAuthToken"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Auth token (optional)" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Status:"
+            android:textSize="14sp" />
 
-    <Button
-        android:id="@+id/btnConnect"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Connect" />
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Offline"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FF0000"
+            android:layout_marginBottom="8dp" />
 
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Disconnected"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Address:"
+            android:textSize="14sp" />
 
-    <TextView
-        android:id="@+id/tvLog"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="#f0f0f0"
-        android:padding="8dp"
-        android:scrollbars="vertical"
-        android:textSize="12sp"
-        android:typeface="monospace" />
-</LinearLayout>
+        <EditText
+            android:id="@+id/etServer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="ws://localhost:8000"
+            android:text="ws://192.168.1.100:8000/device"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etDeviceId"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Device ID"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnConnect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Connect" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Auth Token:"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etAuthToken"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Auth token (optional)"
+                android:inputType="textPassword"
+                android:layout_marginEnd="8dp" />
+
+            <CheckBox
+                android:id="@+id/chkShowToken"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Show" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnOpenPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open Control Panel"
+            android:enabled="false"
+            android:layout_marginTop="8dp" />
+
+        <!-- Toggle Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp">
+
+            <Button
+                android:id="@+id/btnToggleFeatures"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Show features"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnToggleLogs"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Show logs"
+                android:layout_marginStart="4dp" />
+
+            <Button
+                android:id="@+id/btnToggleTheme"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🌙 Dark"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnOpenLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open Logs Folder"
+            android:layout_marginTop="4dp" />
+
+        <!-- Capabilities Group -->
+        <LinearLayout
+            android:id="@+id/groupCapabilities"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enabled Capabilities"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <CheckBox
+                android:id="@+id/chkOpenBrowser"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="open_browser"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkShowNotification"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="show_notification"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkSetVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="set_volume"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkVolumeUp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="volume_up"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkVolumeDown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="volume_down"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkGetStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="get_status"
+                android:checked="true" />
+        </LinearLayout>
+
+        <!-- Extended Status Group -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Substatus:"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/spinnerSubstatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnUpdateStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Update" />
+        </LinearLayout>
+
+        <!-- Send to Device Group -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Send to Device"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Target Device:" />
+
+        <EditText
+            android:id="@+id/etTargetDevice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="device-id"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Command:" />
+
+        <EditText
+            android:id="@+id/etCustomCommand"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="command"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Payload (JSON):" />
+
+        <EditText
+            android:id="@+id/etPayload"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="{}"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnSendToDevice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Send to Device"
+            android:enabled="false" />
+
+        <!-- Logs -->
+        <TextView
+            android:id="@+id/tvLogsLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Logs"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvLog"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="#1a1a1a"
+            android:padding="8dp"
+            android:textSize="11sp"
+            android:typeface="monospace"
+            android:textColor="#cccccc"
+            android:scrollbars="vertical"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</ScrollView>

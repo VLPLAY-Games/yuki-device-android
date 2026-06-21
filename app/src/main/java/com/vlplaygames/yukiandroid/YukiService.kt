@@ -6,7 +6,9 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 
 class YukiService : Service() {
 
@@ -29,8 +31,6 @@ class YukiService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Initializing..."))
-
-        // Инициализация CommandHandler контекстом
         CommandHandler.init(this)
     }
 
@@ -43,7 +43,6 @@ class YukiService : Service() {
                     authToken = it.getStringExtra(EXTRA_AUTH_TOKEN)
 
                     if (serverUrl.isNotEmpty() && deviceId.isNotEmpty()) {
-                        // Сохраняем настройки
                         savePreferences(serverUrl, deviceId, authToken)
                         connect()
                     }
@@ -51,9 +50,63 @@ class YukiService : Service() {
                 ACTION_DISCONNECT -> {
                     disconnect()
                 }
+                "ACTION_UPDATE_SUBSTATUS" -> {
+                    val substatus = it.getStringExtra("SUBSTATUS") ?: "idle"
+                    if (::client.isInitialized) {
+                        client.updateSubstatus(substatus)
+                    }
+                }
+                "ACTION_SEND_TO_DEVICE" -> {
+                    val target = it.getStringExtra("TARGET_DEVICE") ?: return START_STICKY
+                    val command = it.getStringExtra("COMMAND") ?: return START_STICKY
+                    val payloadStr = it.getStringExtra("PAYLOAD") ?: "{}"
+
+                    if (::client.isInitialized) {
+                        try {
+                            val payload = JsonParser.parseString(payloadStr).asJsonObject
+                            client.sendMessage(
+                                YukiProtocol.deviceToDeviceMessage(
+                                    deviceId, target, command,
+                                    payloadToMap(payload), false
+                                )
+                            )
+                            android.util.Log.d("YukiService", "Sent to $target: $command")
+                        } catch (e: Exception) {
+                            android.util.Log.e("YukiService", "Failed to send: ${e.message}")
+                        }
+                    }
+                }
             }
         }
         return START_STICKY
+    }
+
+    private fun payloadToMap(json: JsonObject): Map<String, Any> {
+        val map = mutableMapOf<String, Any>()
+        json.entrySet().forEach { entry ->
+            val value = entry.value
+            when {
+                value.isJsonPrimitive -> {
+                    val prim = value.asJsonPrimitive
+                    when {
+                        prim.isBoolean -> map[entry.key] = prim.asBoolean
+                        prim.isNumber -> map[entry.key] = prim.asNumber
+                        prim.isString -> map[entry.key] = prim.asString
+                    }
+                }
+                value.isJsonObject -> map[entry.key] = payloadToMap(value.asJsonObject)
+                value.isJsonArray -> {
+                    val list = mutableListOf<Any>()
+                    value.asJsonArray.forEach { element ->
+                        if (element.isJsonPrimitive) {
+                            list.add(element.asJsonPrimitive.asString)
+                        }
+                    }
+                    map[entry.key] = list
+                }
+            }
+        }
+        return map
     }
 
     private fun connect() {
@@ -64,12 +117,14 @@ class YukiService : Service() {
         client.onStatusChanged = { connected ->
             val statusText = if (connected) "Connected" else "Disconnected"
             updateNotification(statusText)
-            // Можно отправить broadcast для UI
             sendStatusBroadcast(connected)
         }
         client.onLog = { log ->
-            // Можно логировать в файл или отправлять в UI
             android.util.Log.d("YukiService", log)
+        }
+        client.onCommandReceived = { command, params ->
+            android.util.Log.d("YukiService", "Command received: $command")
+            // Команды обрабатываются в CommandHandler через YukiClient
         }
         client.connect(serverUrl)
     }
@@ -104,8 +159,6 @@ class YukiService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    // ============ УВЕДОМЛЕНИЯ ============
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
