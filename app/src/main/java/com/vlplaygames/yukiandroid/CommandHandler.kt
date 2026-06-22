@@ -9,10 +9,14 @@ import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
+import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.gson.JsonObject
+import java.io.BufferedReader
+import java.io.FileReader
+import java.util.*
 
 /**
  * Обработчик команд, полученных от сервера или других устройств.
@@ -22,6 +26,11 @@ object CommandHandler {
 
     private var appContext: Context? = null
     private var flashLightState = false
+
+    // Кеш для CPU - используем для расчета загрузки
+    private var lastCpuTime = 0L
+    private var lastIdleTime = 0L
+    private var cpuUsagePercent = 0
 
     // Инициализация контекста (вызвать из Application или при старте)
     fun init(context: Context) {
@@ -72,11 +81,8 @@ object CommandHandler {
                 }
 
                 "get_status" -> {
-                    Triple(true, mapOf(
-                        "status" to "online",
-                        "substatus" to "idle",
-                        "battery" to getBatteryLevel()
-                    ), null)
+                    val systemInfo = getSystemInfo()
+                    Triple(true, systemInfo, null)
                 }
 
                 // ===== НОВЫЕ КОМАНДЫ =====
@@ -194,7 +200,22 @@ object CommandHandler {
         return (current * 100 / max)
     }
 
-    // ===== МЕТРИКИ =====
+    // ===== МЕТРИКИ (PUBLIC METHODS) =====
+
+    /**
+     * Получить полную информацию о системе (для статуса)
+     */
+    fun getSystemInfo(): Map<String, Any> {
+        return mapOf(
+            "status" to "online",
+            "substatus" to "idle",
+            "battery" to getBatteryLevel(),
+            "battery_charging" to isCharging(),
+            "cpu" to getCpuUsage(),
+            "memory" to getMemoryUsage(),
+            "memory_percent" to getMemoryPercent()
+        )
+    }
 
     fun getBatteryLevel(): Int {
         val ctx = appContext ?: return 0
@@ -202,16 +223,87 @@ object CommandHandler {
         return batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 0
     }
 
-    private fun isCharging(): Boolean {
+    fun isCharging(): Boolean {
         val ctx = appContext ?: return false
         val batteryManager = ctx.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
         return batteryManager?.isCharging ?: false
     }
 
     /**
+     * Получить загрузку CPU в процентах (0-100)
+     */
+    fun getCpuUsage(): Int {
+        try {
+            // Читаем /proc/stat для получения общей и idle загрузки CPU
+            val reader = BufferedReader(FileReader("/proc/stat"))
+            val line = reader.readLine()
+            reader.close()
+
+            if (line != null && line.startsWith("cpu ")) {
+                val parts = line.split("\\s+".toRegex())
+                if (parts.size >= 8) {
+                    // user, nice, system, idle, iowait, irq, softirq, steal
+                    val user = parts[1].toLong()
+                    val nice = parts[2].toLong()
+                    val system = parts[3].toLong()
+                    val idle = parts[4].toLong()
+                    val iowait = parts[5].toLong()
+                    val irq = parts[6].toLong()
+                    val softirq = parts[7].toLong()
+                    val steal = if (parts.size > 8) parts[8].toLong() else 0
+
+                    val total = user + nice + system + idle + iowait + irq + softirq + steal
+                    val idleTime = idle + iowait
+
+                    if (lastCpuTime > 0) {
+                        val totalDiff = total - lastCpuTime
+                        val idleDiff = idleTime - lastIdleTime
+
+                        if (totalDiff > 0) {
+                            cpuUsagePercent = ((totalDiff - idleDiff) * 100 / totalDiff).toInt()
+                                .coerceIn(0, 100)
+                        }
+                    }
+
+                    lastCpuTime = total
+                    lastIdleTime = idleTime
+                    return cpuUsagePercent
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CommandHandler", "Failed to get CPU usage: ${e.message}")
+        }
+        return 0
+    }
+
+    /**
+     * Получить использование памяти в байтах
+     */
+    fun getMemoryUsage(): Long {
+        val ctx = appContext ?: return 0
+        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        return mi.totalMem - mi.availMem
+    }
+
+    /**
+     * Получить процент использования памяти (0-100)
+     */
+    fun getMemoryPercent(): Int {
+        val ctx = appContext ?: return 0
+        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        val total = mi.totalMem
+        val avail = mi.availMem
+        return ((total - avail) * 100 / total).toInt().coerceIn(0, 100)
+    }
+
+    /**
      * Получить текущую яркость экрана (0-255)
      */
-    private fun getBrightness(): Int {
+    fun getBrightness(): Int {
         val ctx = appContext ?: return 0
         return try {
             Settings.System.getInt(

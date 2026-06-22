@@ -139,7 +139,7 @@ class YukiClient(
                     isAuthorized = true
                     onStatusChanged?.invoke(true)
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
-                    sendMessage(YukiProtocol.extendedStatusMessage(deviceId, status = "online", substatus = substatus))
+                    sendExtendedStatus()
                     onLog?.invoke("Status and extended status sent")
                     startPeriodicTasks()
                 }
@@ -233,7 +233,7 @@ class YukiClient(
                 delay(30_000)
                 if (isConnected && isAuthorized) {
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
-                    sendMessage(YukiProtocol.extendedStatusMessage(deviceId, substatus = substatus))
+                    sendExtendedStatus()
                 }
                 delay(30_000)
                 if (isConnected && isAuthorized) {
@@ -243,6 +243,29 @@ class YukiClient(
         }
     }
 
+    /**
+     * Отправить расширенный статус с информацией о CPU, RAM и батарее
+     */
+    private fun sendExtendedStatus() {
+        val systemInfo = CommandHandler.getSystemInfo()
+        val details = mutableMapOf<String, Any>(
+            "battery" to CommandHandler.getBatteryLevel(),
+            "battery_charging" to CommandHandler.isCharging(),
+            "memory_percent" to CommandHandler.getMemoryPercent(),
+            "memory_usage" to CommandHandler.getMemoryUsage(),
+            "cpu" to CommandHandler.getCpuUsage()
+        )
+
+        val msg = YukiProtocol.extendedStatusMessage(
+            deviceId = deviceId,
+            status = "online",
+            substatus = substatus,
+            details = details
+        )
+        sendMessage(msg)
+        onLog?.invoke("Extended status sent: cpu=${details["cpu"]}%, memory=${details["memory_percent"]}%, battery=${details["battery"]}%")
+    }
+
     private fun sendMetrics() {
         val metrics = collectSystemMetrics()
         val msg = YukiProtocol.metricsMessage(deviceId, metrics)
@@ -250,23 +273,14 @@ class YukiClient(
     }
 
     private fun collectSystemMetrics(): Map<String, Any> {
-        val ctx = CommandHandler.getAppContext() ?: return emptyMap()
-        val battery = CommandHandler.getBatteryLevel()
-        val memory = getMemoryUsage(ctx)
         return mapOf(
-            "battery" to battery,
-            "memory_percent" to memory,
+            "battery" to CommandHandler.getBatteryLevel(),
+            "battery_charging" to CommandHandler.isCharging(),
+            "cpu" to CommandHandler.getCpuUsage(),
+            "memory_percent" to CommandHandler.getMemoryPercent(),
+            "memory_usage" to CommandHandler.getMemoryUsage(),
             "timestamp" to System.currentTimeMillis() / 1000
         )
-    }
-
-    private fun getMemoryUsage(context: android.content.Context): Int {
-        val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        val mi = android.app.ActivityManager.MemoryInfo()
-        am.getMemoryInfo(mi)
-        val total = mi.totalMem
-        val avail = mi.availMem
-        return ((total - avail) * 100 / total).toInt()
     }
 
     private fun scheduleReconnect() {
@@ -283,7 +297,7 @@ class YukiClient(
     fun updateSubstatus(newSubstatus: String) {
         substatus = newSubstatus
         if (isConnected && isAuthorized) {
-            sendMessage(YukiProtocol.extendedStatusMessage(deviceId, substatus = substatus))
+            sendExtendedStatus()
         }
     }
 }
