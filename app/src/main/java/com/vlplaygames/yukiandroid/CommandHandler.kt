@@ -5,9 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.gson.JsonObject
 
@@ -18,6 +21,7 @@ import com.google.gson.JsonObject
 object CommandHandler {
 
     private var appContext: Context? = null
+    private var flashLightState = false
 
     // Инициализация контекста (вызвать из Application или при старте)
     fun init(context: Context) {
@@ -68,12 +72,59 @@ object CommandHandler {
                 }
 
                 "get_status" -> {
-                    // Возвращаем текущий статус (может быть расширен)
                     Triple(true, mapOf(
                         "status" to "online",
                         "substatus" to "idle",
                         "battery" to getBatteryLevel()
                     ), null)
+                }
+
+                // ===== НОВЫЕ КОМАНДЫ =====
+                "get_battery" -> {
+                    val battery = getBatteryLevel()
+                    val isCharging = isCharging()
+                    Triple(true, mapOf(
+                        "battery" to battery,
+                        "charging" to isCharging,
+                        "unit" to "percent"
+                    ), null)
+                }
+
+                "get_brightness" -> {
+                    val brightness = getBrightness()
+                    Triple(true, mapOf(
+                        "brightness" to brightness,
+                        "max" to 255,
+                        "unit" to "0-255"
+                    ), null)
+                }
+
+                "set_flashlight" -> {
+                    val on = params.get("on")?.asBoolean ?: true
+                    val success = setFlashlight(on)
+                    if (success) {
+                        flashLightState = on
+                        Triple(true, mapOf(
+                            "flashlight" to on,
+                            "state" to if (on) "on" else "off"
+                        ), null)
+                    } else {
+                        Triple(false, null, "Failed to set flashlight")
+                    }
+                }
+
+                "toggle_flashlight" -> {
+                    val newState = !flashLightState
+                    val success = setFlashlight(newState)
+                    if (success) {
+                        flashLightState = newState
+                        Triple(true, mapOf(
+                            "flashlight" to newState,
+                            "state" to if (newState) "on" else "off"
+                        ), null)
+                    } else {
+                        Triple(false, null, "Failed to toggle flashlight")
+                    }
                 }
 
                 else -> {
@@ -143,10 +194,55 @@ object CommandHandler {
         return (current * 100 / max)
     }
 
-    // Делаем этот метод публичным для доступа из YukiClient
+    // ===== МЕТРИКИ =====
+
     fun getBatteryLevel(): Int {
         val ctx = appContext ?: return 0
         val batteryManager = ctx.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
         return batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 0
+    }
+
+    private fun isCharging(): Boolean {
+        val ctx = appContext ?: return false
+        val batteryManager = ctx.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        return batteryManager?.isCharging ?: false
+    }
+
+    /**
+     * Получить текущую яркость экрана (0-255)
+     */
+    private fun getBrightness(): Int {
+        val ctx = appContext ?: return 0
+        return try {
+            Settings.System.getInt(
+                ctx.contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS
+            )
+        } catch (e: Exception) {
+            Log.e("CommandHandler", "Failed to get brightness: ${e.message}")
+            0
+        }
+    }
+
+    /**
+     * Управление фонариком (вспышкой камеры)
+     */
+    private fun setFlashlight(on: Boolean): Boolean {
+        val ctx = appContext ?: return false
+        return try {
+            val cameraManager = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val cameraId = cameraManager.cameraIdList.firstOrNull()
+                ?: return false
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                cameraManager.setTorchMode(cameraId, on)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("CommandHandler", "Failed to set flashlight: ${e.message}")
+            false
+        }
     }
 }

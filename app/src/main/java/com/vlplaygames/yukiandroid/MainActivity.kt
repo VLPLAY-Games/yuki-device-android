@@ -8,7 +8,6 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
@@ -47,8 +46,10 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             val connected = intent.getBooleanExtra("connected", false)
             isConnected = connected
-            updateUI(connected)
-            addLog(if (connected) "Connected to server" else "Disconnected from server")
+            runOnUiThread {
+                updateUI(connected)
+                addLog(if (connected) "Connected to server" else "Disconnected from server")
+            }
         }
     }
 
@@ -126,6 +127,11 @@ class MainActivity : AppCompatActivity() {
                 if (findViewById<CheckBox>(R.id.chkVolumeUp).isChecked) capabilities.add("volume_up")
                 if (findViewById<CheckBox>(R.id.chkVolumeDown).isChecked) capabilities.add("volume_down")
                 if (findViewById<CheckBox>(R.id.chkGetStatus).isChecked) capabilities.add("get_status")
+                // НОВЫЕ CAPABILITIES
+                if (findViewById<CheckBox>(R.id.chkGetBattery).isChecked) capabilities.add("get_battery")
+                if (findViewById<CheckBox>(R.id.chkGetBrightness).isChecked) capabilities.add("get_brightness")
+                if (findViewById<CheckBox>(R.id.chkSetFlashlight).isChecked) capabilities.add("set_flashlight")
+                if (findViewById<CheckBox>(R.id.chkToggleFlashlight).isChecked) capabilities.add("toggle_flashlight")
 
                 val intent = Intent(this, YukiService::class.java)
                 intent.action = YukiService.ACTION_CONNECT
@@ -136,6 +142,20 @@ class MainActivity : AppCompatActivity() {
 
                 btnConnect.text = "Disconnect"
                 addLog("Connecting to $server ...")
+            }
+        }
+
+        // Force disconnect by long press
+        btnConnect.setOnLongClickListener {
+            if (isConnected) {
+                val intent = Intent(this, YukiService::class.java)
+                intent.action = YukiService.ACTION_FORCE_DISCONNECT
+                startService(intent)
+                addLog("Force disconnect")
+                Toast.makeText(this, "Force disconnect", Toast.LENGTH_SHORT).show()
+                true
+            } else {
+                false
             }
         }
 
@@ -177,7 +197,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnOpenLogs.setOnClickListener {
-            // В Android нет прямого доступа к папке логов, показываем Toast
             Toast.makeText(this, "Logs are stored in app's internal storage", Toast.LENGTH_SHORT).show()
         }
 
@@ -232,10 +251,10 @@ class MainActivity : AppCompatActivity() {
         etDeviceId.setText(prefs.getString("device_id", "android-${Build.MODEL}") ?: "")
         etAuthToken.setText(prefs.getString("auth_token", "") ?: "")
 
-        // Capabilities
         val caps = prefs.getStringSet("capabilities", setOf(
             "open_browser", "show_notification", "set_volume",
-            "volume_up", "volume_down", "get_status"
+            "volume_up", "volume_down", "get_status",
+            "get_battery", "get_brightness", "set_flashlight", "toggle_flashlight"
         )) ?: emptySet()
 
         findViewById<CheckBox>(R.id.chkOpenBrowser).isChecked = "open_browser" in caps
@@ -244,8 +263,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<CheckBox>(R.id.chkVolumeUp).isChecked = "volume_up" in caps
         findViewById<CheckBox>(R.id.chkVolumeDown).isChecked = "volume_down" in caps
         findViewById<CheckBox>(R.id.chkGetStatus).isChecked = "get_status" in caps
+        // НОВЫЕ CAPABILITIES
+        findViewById<CheckBox>(R.id.chkGetBattery).isChecked = "get_battery" in caps
+        findViewById<CheckBox>(R.id.chkGetBrightness).isChecked = "get_brightness" in caps
+        findViewById<CheckBox>(R.id.chkSetFlashlight).isChecked = "set_flashlight" in caps
+        findViewById<CheckBox>(R.id.chkToggleFlashlight).isChecked = "toggle_flashlight" in caps
 
-        // UI state
         featuresVisible = prefs.getBoolean("features_visible", false)
         logsVisible = prefs.getBoolean("logs_visible", false)
         isDarkTheme = prefs.getBoolean("dark_theme", true)
@@ -259,7 +282,6 @@ class MainActivity : AppCompatActivity() {
 
         btnToggleTheme.text = if (isDarkTheme) "🌙 Dark" else "☀️ Light"
 
-        // Substatus
         val substatus = prefs.getString("substatus", "idle")
         val idx = substatuses.indexOf(substatus)
         if (idx >= 0) spinnerSubstatus.setSelection(idx)
@@ -279,6 +301,11 @@ class MainActivity : AppCompatActivity() {
             if (findViewById<CheckBox>(R.id.chkVolumeUp).isChecked) caps.add("volume_up")
             if (findViewById<CheckBox>(R.id.chkVolumeDown).isChecked) caps.add("volume_down")
             if (findViewById<CheckBox>(R.id.chkGetStatus).isChecked) caps.add("get_status")
+            // НОВЫЕ CAPABILITIES
+            if (findViewById<CheckBox>(R.id.chkGetBattery).isChecked) caps.add("get_battery")
+            if (findViewById<CheckBox>(R.id.chkGetBrightness).isChecked) caps.add("get_brightness")
+            if (findViewById<CheckBox>(R.id.chkSetFlashlight).isChecked) caps.add("set_flashlight")
+            if (findViewById<CheckBox>(R.id.chkToggleFlashlight).isChecked) caps.add("toggle_flashlight")
             putStringSet("capabilities", caps)
 
             putBoolean("features_visible", featuresVisible)
@@ -291,7 +318,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyTheme() {
-        // Убираем попытку привести к ConstraintLayout
         val rootView = findViewById<android.view.View>(android.R.id.content)
 
         if (isDarkTheme) {
@@ -320,7 +346,6 @@ class MainActivity : AppCompatActivity() {
         logMessages.add("[$time] $msg")
         if (logMessages.size > 100) logMessages.removeAt(0)
         tvLog.text = logMessages.joinToString("\n")
-        // Scroll to bottom
         tvLog.post { tvLog.scrollTo(0, tvLog.bottom) }
     }
 

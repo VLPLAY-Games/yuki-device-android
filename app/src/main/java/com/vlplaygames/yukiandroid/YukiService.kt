@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -17,6 +18,7 @@ class YukiService : Service() {
         private const val NOTIFICATION_ID = 1001
         const val ACTION_CONNECT = "ACTION_CONNECT"
         const val ACTION_DISCONNECT = "ACTION_DISCONNECT"
+        const val ACTION_FORCE_DISCONNECT = "ACTION_FORCE_DISCONNECT"
         const val EXTRA_SERVER_URL = "SERVER_URL"
         const val EXTRA_DEVICE_ID = "DEVICE_ID"
         const val EXTRA_AUTH_TOKEN = "AUTH_TOKEN"
@@ -49,6 +51,14 @@ class YukiService : Service() {
                 }
                 ACTION_DISCONNECT -> {
                     disconnect()
+                }
+                ACTION_FORCE_DISCONNECT -> {
+                    if (::client.isInitialized) {
+                        client.forceDisconnect()
+                        client = YukiClient("", null) // сброс
+                    }
+                    updateNotification("Disconnected")
+                    sendStatusBroadcast(false)
                 }
                 "ACTION_UPDATE_SUBSTATUS" -> {
                     val substatus = it.getStringExtra("SUBSTATUS") ?: "idle"
@@ -121,10 +131,46 @@ class YukiService : Service() {
         }
         client.onLog = { log ->
             android.util.Log.d("YukiService", log)
+            // записываем в файловый логгер, если есть
+            Logger.info(log)
         }
         client.onCommandReceived = { command, params ->
             android.util.Log.d("YukiService", "Command received: $command")
-            // Команды обрабатываются в CommandHandler через YukiClient
+        }
+        // Обработка команд от других устройств (аналог PC-клиента)
+        client.onDeviceCommand = { fromDevice, command, payload ->
+            android.util.Log.d("YukiService", "Device command from $fromDevice: $command")
+            // Аналог switch в PC-клиенте
+            when (command?.lowercase()) {
+                "show_message" -> {
+                    val message = payload.get("message")?.asString ?: "No message"
+                    // Показываем Toast (или уведомление)
+                    runOnUiThread {
+                        Toast.makeText(
+                            applicationContext,
+                            "Message from $fromDevice: $message",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                "get_status" -> {
+                    // Отправляем ответ обратно (это уже делается автоматически при require_response)
+                    // Но если require_response=false, мы всё равно можем ответить
+                    client.sendMessage(
+                        YukiProtocol.deviceToDeviceMessage(
+                            deviceId, fromDevice, "status_response",
+                            mapOf(
+                                "status" to "online",
+                                "substatus" to client.substatus,
+                                "battery" to CommandHandler.getBatteryLevel()
+                            ), false
+                        )
+                    )
+                }
+            }
+        }
+        client.onDeviceBroadcast = { command, payload ->
+            android.util.Log.d("YukiService", "Broadcast: $command")
         }
         client.connect(serverUrl)
     }
@@ -150,6 +196,14 @@ class YukiService : Service() {
             putString("device_id", deviceId)
             putString("auth_token", authToken)
             apply()
+        }
+    }
+
+    private fun runOnUiThread(action: () -> Unit) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            action()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).post(action)
         }
     }
 

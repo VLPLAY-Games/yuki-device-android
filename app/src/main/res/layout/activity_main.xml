@@ -201,6 +201,35 @@
                 android:layout_height="wrap_content"
                 android:text="get_status"
                 android:checked="true" />
+
+            <!-- НОВЫЕ CAPABILITIES -->
+            <CheckBox
+                android:id="@+id/chkGetBattery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="get_battery"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkGetBrightness"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="get_brightness"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkSetFlashlight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="set_flashlight"
+                android:checked="true" />
+
+            <CheckBox
+                android:id="@+id/chkToggleFlashlight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="toggle_flashlight"
+                android:checked="true" />
         </LinearLayout>
 
         <!-- Extended Status Group -->

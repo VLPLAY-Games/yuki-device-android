@@ -13,7 +13,8 @@ class YukiClient(
     private val authToken: String? = null,
     private val capabilities: List<String> = listOf(
         "open_browser", "show_notification", "set_volume",
-        "volume_up", "volume_down", "get_status"
+        "volume_up", "volume_down", "get_status",
+        "get_battery", "get_brightness", "set_flashlight", "toggle_flashlight"
     )
 ) {
     companion object {
@@ -22,14 +23,13 @@ class YukiClient(
 
     private var webSocket: WebSocket? = null
     private var isConnected = false
+    private var isAuthorized = false
     private var reconnectJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val gson = Gson()
 
-    // Состояние
     var substatus: String = "idle"
 
-    // Callbacks
     var onStatusChanged: ((Boolean) -> Unit)? = null
     var onLog: ((String) -> Unit)? = null
     var onCommandReceived: ((String, JsonObject) -> Unit)? = null
@@ -56,10 +56,10 @@ class YukiClient(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 isConnected = true
+                isAuthorized = false
                 onStatusChanged?.invoke(true)
                 onLog?.invoke("WebSocket opened")
                 sendHello()
-                startPeriodicTasks()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -88,8 +88,20 @@ class YukiClient(
         webSocket?.close(1000, "User disconnect")
         webSocket = null
         isConnected = false
+        isAuthorized = false
         onStatusChanged?.invoke(false)
         onLog?.invoke("Disconnected")
+    }
+
+    fun forceDisconnect() {
+        reconnectJob?.cancel()
+        scope.coroutineContext.cancelChildren()
+        webSocket?.cancel()
+        webSocket = null
+        isConnected = false
+        isAuthorized = false
+        onStatusChanged?.invoke(false)
+        onLog?.invoke("Force disconnected")
     }
 
     private fun sendHello() {
@@ -99,6 +111,7 @@ class YukiClient(
             capabilities = capabilities,
             authToken = authToken
         )
+        onLog?.invoke("Sending hello...")
         sendMessage(hello)
     }
 
@@ -110,6 +123,7 @@ class YukiClient(
 
     private fun handleMessage(text: String) {
         try {
+            onLog?.invoke("Received: $text")
             val jsonElement = JsonParser.parseString(text)
             val obj = jsonElement.asJsonObject
             val type = obj.get("type")?.asString ?: return
@@ -119,8 +133,22 @@ class YukiClient(
             when (type) {
                 "welcome" -> {
                     onLog?.invoke("Welcome received")
+                    isAuthorized = true
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
                     sendMessage(YukiProtocol.extendedStatusMessage(deviceId, substatus = substatus))
+                    startPeriodicTasks()
+                }
+
+                "device_auth_response" -> {
+                    val approved = payload.get("approved")?.asBoolean ?: false
+                    onLog?.invoke("Auth response: approved=$approved")
+                    if (approved) {
+                        isAuthorized = true
+                        onLog?.invoke("Device authorized, waiting for welcome...")
+                    } else {
+                        onLog?.invoke("Device authorization denied")
+                        disconnect()
+                    }
                 }
 
                 "command" -> {
@@ -134,7 +162,20 @@ class YukiClient(
                     val from = payload.get("from_device_id")?.asString ?: return
                     val cmd = payload.get("command")?.asString ?: return
                     val cmdPayload = payload.get("payload")?.asJsonObject ?: JsonObject()
+                    val requireResponse = payload.get("require_response")?.asBoolean ?: false
+
                     onDeviceCommand?.invoke(from, cmd, cmdPayload)
+
+                    // Если требуется ответ, отправляем результат
+                    if (requireResponse) {
+                        scope.launch {
+                            val (success, result, error) = CommandHandler.execute(cmd, cmdPayload)
+                            val responseMsg = YukiProtocol.deviceResponseMessage(
+                                id, deviceId, from, success, result, error
+                            )
+                            sendMessage(responseMsg)
+                        }
+                    }
                 }
 
                 "device_broadcast" -> {
@@ -170,6 +211,7 @@ class YukiClient(
             }
         } catch (e: Exception) {
             onLog?.invoke("Error parsing message: ${e.message}")
+            e.printStackTrace()
         }
     }
 
@@ -183,14 +225,14 @@ class YukiClient(
 
     private fun startPeriodicTasks() {
         scope.launch {
-            while (isConnected) {
+            while (isConnected && isAuthorized) {
                 delay(30_000)
-                if (isConnected) {
+                if (isConnected && isAuthorized) {
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
                     sendMessage(YukiProtocol.extendedStatusMessage(deviceId, substatus = substatus))
                 }
                 delay(30_000)
-                if (isConnected) {
+                if (isConnected && isAuthorized) {
                     sendMetrics()
                 }
             }
@@ -234,10 +276,9 @@ class YukiClient(
         }
     }
 
-    // Переименовал метод, чтобы избежать конфликта с автоматическим сеттером
     fun updateSubstatus(newSubstatus: String) {
         substatus = newSubstatus
-        if (isConnected) {
+        if (isConnected && isAuthorized) {
             sendMessage(YukiProtocol.extendedStatusMessage(deviceId, substatus = substatus))
         }
     }
