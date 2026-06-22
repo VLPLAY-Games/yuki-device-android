@@ -370,6 +370,9 @@ class MainActivity : AppCompatActivity() {
         // Дополнительно применяем фон для кнопок (рекурсивный обход пропускает их)
         applyButtonBackgrounds(bgButton)
 
+        // Дополнительно применяем стили для всех EditText (включая те, что могли быть пропущены)
+        applyEditTextStyles(textColor, hintColor, bgEditText)
+
         // Обновляем Spinner
         updateSpinnerAdapter()
 
@@ -424,6 +427,19 @@ class MainActivity : AppCompatActivity() {
                     bgColor, textColor, hintColor, bgEditText, bgButton, bgGroup
                 )
             }
+        }
+    }
+
+    private fun applyEditTextStyles(textColor: Int, hintColor: Int, bgEditText: Int) {
+        // Явно применяем стили ко всем EditText (включая те, что в "Send to Device")
+        val editTexts = listOf(
+            etServer, etDeviceId, etAuthToken,
+            etTargetDevice, etCustomCommand, etPayload
+        )
+        editTexts.forEach { editText ->
+            editText.setTextColor(textColor)
+            editText.setHintTextColor(hintColor)
+            editText.setBackgroundColor(bgEditText)
         }
     }
 
