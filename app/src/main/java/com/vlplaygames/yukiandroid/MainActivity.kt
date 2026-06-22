@@ -6,8 +6,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
@@ -32,6 +35,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etCustomCommand: EditText
     private lateinit var etPayload: EditText
     private lateinit var btnSendToDevice: Button
+    private lateinit var scrollView: ScrollView
+    private lateinit var mainLayout: LinearLayout
 
     private var isConnected = false
     private var featuresVisible = false
@@ -71,6 +76,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
+        scrollView = findViewById(R.id.scrollView)
+        mainLayout = findViewById(R.id.mainLayout)
         etServer = findViewById(R.id.etServer)
         etDeviceId = findViewById(R.id.etDeviceId)
         etAuthToken = findViewById(R.id.etAuthToken)
@@ -119,7 +126,6 @@ class MainActivity : AppCompatActivity() {
                     return@setOnClickListener
                 }
 
-                // Собираем capabilities
                 capabilities.clear()
                 if (findViewById<CheckBox>(R.id.chkOpenBrowser).isChecked) capabilities.add("open_browser")
                 if (findViewById<CheckBox>(R.id.chkShowNotification).isChecked) capabilities.add("show_notification")
@@ -127,7 +133,6 @@ class MainActivity : AppCompatActivity() {
                 if (findViewById<CheckBox>(R.id.chkVolumeUp).isChecked) capabilities.add("volume_up")
                 if (findViewById<CheckBox>(R.id.chkVolumeDown).isChecked) capabilities.add("volume_down")
                 if (findViewById<CheckBox>(R.id.chkGetStatus).isChecked) capabilities.add("get_status")
-                // НОВЫЕ CAPABILITIES
                 if (findViewById<CheckBox>(R.id.chkGetBattery).isChecked) capabilities.add("get_battery")
                 if (findViewById<CheckBox>(R.id.chkGetBrightness).isChecked) capabilities.add("get_brightness")
                 if (findViewById<CheckBox>(R.id.chkSetFlashlight).isChecked) capabilities.add("set_flashlight")
@@ -145,7 +150,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Force disconnect by long press
         btnConnect.setOnLongClickListener {
             if (isConnected) {
                 val intent = Intent(this, YukiService::class.java)
@@ -177,15 +181,15 @@ class MainActivity : AppCompatActivity() {
         btnToggleFeatures.setOnClickListener {
             featuresVisible = !featuresVisible
             btnToggleFeatures.text = if (featuresVisible) "Hide features" else "Show features"
-            groupCapabilities.visibility = if (featuresVisible) android.view.View.VISIBLE else android.view.View.GONE
+            groupCapabilities.visibility = if (featuresVisible) View.VISIBLE else View.GONE
             savePreferences()
         }
 
         btnToggleLogs.setOnClickListener {
             logsVisible = !logsVisible
             btnToggleLogs.text = if (logsVisible) "Hide logs" else "Show logs"
-            tvLog.visibility = if (logsVisible) android.view.View.VISIBLE else android.view.View.GONE
-            tvLogsLabel.visibility = if (logsVisible) android.view.View.VISIBLE else android.view.View.GONE
+            tvLog.visibility = if (logsVisible) View.VISIBLE else View.GONE
+            tvLogsLabel.visibility = if (logsVisible) View.VISIBLE else View.GONE
             savePreferences()
         }
 
@@ -247,7 +251,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadPreferences() {
         val prefs = getSharedPreferences("yuki", Context.MODE_PRIVATE)
 
-        etServer.setText(prefs.getString("server_url", "ws://192.168.1.100:8000/device") ?: "")
+        etServer.setText(prefs.getString("server_url", "ws://192.168.1.100:8000") ?: "")
         etDeviceId.setText(prefs.getString("device_id", "android-${Build.MODEL}") ?: "")
         etAuthToken.setText(prefs.getString("auth_token", "") ?: "")
 
@@ -263,7 +267,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<CheckBox>(R.id.chkVolumeUp).isChecked = "volume_up" in caps
         findViewById<CheckBox>(R.id.chkVolumeDown).isChecked = "volume_down" in caps
         findViewById<CheckBox>(R.id.chkGetStatus).isChecked = "get_status" in caps
-        // НОВЫЕ CAPABILITIES
         findViewById<CheckBox>(R.id.chkGetBattery).isChecked = "get_battery" in caps
         findViewById<CheckBox>(R.id.chkGetBrightness).isChecked = "get_brightness" in caps
         findViewById<CheckBox>(R.id.chkSetFlashlight).isChecked = "set_flashlight" in caps
@@ -274,11 +277,11 @@ class MainActivity : AppCompatActivity() {
         isDarkTheme = prefs.getBoolean("dark_theme", true)
 
         btnToggleFeatures.text = if (featuresVisible) "Hide features" else "Show features"
-        groupCapabilities.visibility = if (featuresVisible) android.view.View.VISIBLE else android.view.View.GONE
+        groupCapabilities.visibility = if (featuresVisible) View.VISIBLE else View.GONE
 
         btnToggleLogs.text = if (logsVisible) "Hide logs" else "Show logs"
-        tvLog.visibility = if (logsVisible) android.view.View.VISIBLE else android.view.View.GONE
-        tvLogsLabel.visibility = if (logsVisible) android.view.View.VISIBLE else android.view.View.GONE
+        tvLog.visibility = if (logsVisible) View.VISIBLE else View.GONE
+        tvLogsLabel.visibility = if (logsVisible) View.VISIBLE else View.GONE
 
         btnToggleTheme.text = if (isDarkTheme) "🌙 Dark" else "☀️ Light"
 
@@ -301,7 +304,6 @@ class MainActivity : AppCompatActivity() {
             if (findViewById<CheckBox>(R.id.chkVolumeUp).isChecked) caps.add("volume_up")
             if (findViewById<CheckBox>(R.id.chkVolumeDown).isChecked) caps.add("volume_down")
             if (findViewById<CheckBox>(R.id.chkGetStatus).isChecked) caps.add("get_status")
-            // НОВЫЕ CAPABILITIES
             if (findViewById<CheckBox>(R.id.chkGetBattery).isChecked) caps.add("get_battery")
             if (findViewById<CheckBox>(R.id.chkGetBrightness).isChecked) caps.add("get_brightness")
             if (findViewById<CheckBox>(R.id.chkSetFlashlight).isChecked) caps.add("set_flashlight")
@@ -318,16 +320,102 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyTheme() {
-        val rootView = findViewById<android.view.View>(android.R.id.content)
+        val bgColor = if (isDarkTheme) 0xFF1a1a1a.toInt() else 0xFFf5f5f5.toInt()
+        val textColor = if (isDarkTheme) 0xFFE0E0E0.toInt() else 0xFF000000.toInt()
+        val hintColor = if (isDarkTheme) 0xFF888888.toInt() else 0xFF666666.toInt()
+        val bgEditText = if (isDarkTheme) 0xFF2D2D2D.toInt() else 0xFFFFFFFF.toInt()
+        val bgButton = if (isDarkTheme) 0xFF3D3D3D.toInt() else 0xFFE0E0E0.toInt()
+        val bgGroup = if (isDarkTheme) 0xFF252525.toInt() else 0xFFF0F0F0.toInt()
 
+        // Фон всего окна
+        scrollView.setBackgroundColor(bgColor)
+        mainLayout.setBackgroundColor(bgColor)
+
+        // Фон и цвет текста для логов
         if (isDarkTheme) {
-            rootView.setBackgroundColor(0xFF1a1a1a.toInt())
             tvLog.setBackgroundColor(0xFF0d0d0d.toInt())
             tvLog.setTextColor(0xFFcccccc.toInt())
+            tvLogsLabel.setTextColor(0xFFcccccc.toInt())
         } else {
-            rootView.setBackgroundColor(0xFFf5f5f5.toInt())
             tvLog.setBackgroundColor(0xFFffffff.toInt())
             tvLog.setTextColor(0xFF000000.toInt())
+            tvLogsLabel.setTextColor(0xFF000000.toInt())
+        }
+
+        // Рекурсивно применяем тему ко всем дочерним элементам
+        applyThemeToView(mainLayout, bgColor, textColor, hintColor, bgEditText, bgButton, bgGroup)
+
+        updateUI(isConnected)
+    }
+
+    private fun applyThemeToView(
+        view: View,
+        bgColor: Int,
+        textColor: Int,
+        hintColor: Int,
+        bgEditText: Int,
+        bgButton: Int,
+        bgGroup: Int
+    ) {
+        when (view) {
+            is TextView -> {
+                view.setTextColor(textColor)
+                // Заголовки групп
+                if (view.text.toString().contains("Server Connection") ||
+                    view.text.toString().contains("Enabled Capabilities") ||
+                    view.text.toString().contains("Send to Device") ||
+                    view.text.toString() == "Logs") {
+                    view.setTextColor(textColor)
+                }
+            }
+            is EditText -> {
+                view.setTextColor(textColor)
+                view.setBackgroundColor(bgEditText)
+                view.setHintTextColor(hintColor)
+            }
+            is Button -> {
+                view.setTextColor(textColor)
+                view.setBackgroundColor(bgButton)
+            }
+            is CheckBox -> {
+                view.setTextColor(textColor)
+            }
+            is Spinner -> {
+                // Для Spinner пересоздаём адаптер
+                val position = view.selectedItemPosition
+                val items = substatuses.toList()
+                val adapter = ArrayAdapter(
+                    this,
+                    android.R.layout.simple_spinner_item,
+                    items
+                )
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                view.adapter = adapter
+                if (position >= 0 && position < items.size) {
+                    view.setSelection(position)
+                }
+                // Устанавливаем фон спиннера
+                view.setBackgroundColor(bgEditText)
+            }
+            is LinearLayout -> {
+                // Устанавливаем фон для групп (groupCapabilities)
+                if (view.id == R.id.groupCapabilities) {
+                    view.setBackgroundColor(bgGroup)
+                    view.setPadding(16, 16, 16, 16)
+                }
+            }
+            is ScrollView -> {
+                view.setBackgroundColor(bgColor)
+            }
+        }
+
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                applyThemeToView(
+                    view.getChildAt(i),
+                    bgColor, textColor, hintColor, bgEditText, bgButton, bgGroup
+                )
+            }
         }
     }
 

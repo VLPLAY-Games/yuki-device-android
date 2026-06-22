@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="16dp">
 
     <LinearLayout
+        android:id="@+id/mainLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
@@ -31,7 +34,6 @@
             android:text="Offline"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:textColor="#FF0000"
             android:layout_marginBottom="8dp" />
 
         <TextView
@@ -45,7 +47,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="ws://localhost:8000"
-            android:text="ws://192.168.1.100:8000/device"
             android:layout_marginBottom="8dp" />
 
         <LinearLayout
@@ -202,7 +203,6 @@
                 android:text="get_status"
                 android:checked="true" />
 
-            <!-- НОВЫЕ CAPABILITIES -->
             <CheckBox
                 android:id="@+id/chkGetBattery"
                 android:layout_width="match_parent"
