@@ -1,15 +1,19 @@
 package com.vlplaygames.yukiandroid
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
@@ -44,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private val logMessages = mutableListOf<String>()
     private var capabilities = mutableListOf<String>()
 
+    // Константа для запроса разрешения на уведомления
+    private val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
+
     private val substatuses = arrayOf("idle", "working", "sleeping", "charging", "error", "updating", "maintenance")
 
     private val statusReceiver = object : BroadcastReceiver() {
@@ -72,6 +79,9 @@ class MainActivity : AppCompatActivity() {
 
         CommandHandler.init(applicationContext)
         updateUI(false)
+
+        // Запрос разрешения на уведомления для Android 13+
+        requestNotificationPermission()
     }
 
     private fun initViews() {
@@ -97,6 +107,73 @@ class MainActivity : AppCompatActivity() {
         etCustomCommand = findViewById(R.id.etCustomCommand)
         etPayload = findViewById(R.id.etPayload)
         btnSendToDevice = findViewById(R.id.btnSendToDevice)
+    }
+
+    /**
+     * Запрос разрешения на уведомления для Android 13+ (API 33+)
+     */
+    private fun requestNotificationPermission() {
+        // Для Android 13 (API 33) и выше требуется разрешение POST_NOTIFICATIONS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                // Проверяем, нужно ли показывать объяснение
+                if (ActivityCompat.shouldShowRequestPermissionRationale(
+                        this,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    )
+                ) {
+                    // Показываем объяснение пользователю
+                    Toast.makeText(
+                        this,
+                        "Разрешение на уведомления необходимо для отображения статуса службы и получения команд",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                // Запрашиваем разрешение
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
+            } else {
+                // Разрешение уже есть
+                addLog("Notification permission already granted")
+            }
+        } else {
+            // Для версий ниже Android 13 разрешение не требуется
+            addLog("Notification permission not required for Android ${Build.VERSION.SDK_INT}")
+        }
+    }
+
+    /**
+     * Обработка результата запроса разрешений
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            NOTIFICATION_PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    addLog("Notification permission granted")
+                    Toast.makeText(this, "Notifications enabled", Toast.LENGTH_SHORT).show()
+                } else {
+                    addLog("Notification permission denied")
+                    Toast.makeText(
+                        this,
+                        "Notifications disabled. Some features may not work properly.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
     }
 
     private fun setupListeners() {
