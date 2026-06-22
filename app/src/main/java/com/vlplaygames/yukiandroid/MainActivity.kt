@@ -10,7 +10,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
@@ -242,10 +241,37 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSubstatusSpinner() {
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, substatuses)
+        updateSpinnerAdapter()
+    }
+
+    private fun updateSpinnerAdapter() {
+        val textColor = if (isDarkTheme) 0xFFE0E0E0.toInt() else 0xFF000000.toInt()
+        val bgColor = if (isDarkTheme) 0xFF2D2D2D.toInt() else 0xFFFFFFFF.toInt()
+
+        val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, substatuses) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent)
+                if (view is TextView) {
+                    view.setTextColor(textColor)
+                }
+                return view
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getDropDownView(position, convertView, parent)
+                if (view is TextView) {
+                    view.setTextColor(textColor)
+                }
+                return view
+            }
+        }
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerSubstatus.adapter = adapter
-        spinnerSubstatus.setSelection(0)
+
+        val prefs = getSharedPreferences("yuki", Context.MODE_PRIVATE)
+        val saved = prefs.getString("substatus", "idle")
+        val idx = substatuses.indexOf(saved)
+        if (idx >= 0) spinnerSubstatus.setSelection(idx)
     }
 
     private fun loadPreferences() {
@@ -326,25 +352,28 @@ class MainActivity : AppCompatActivity() {
         val bgEditText = if (isDarkTheme) 0xFF2D2D2D.toInt() else 0xFFFFFFFF.toInt()
         val bgButton = if (isDarkTheme) 0xFF3D3D3D.toInt() else 0xFFE0E0E0.toInt()
         val bgGroup = if (isDarkTheme) 0xFF252525.toInt() else 0xFFF0F0F0.toInt()
+        val bgLog = if (isDarkTheme) 0xFF0d0d0d.toInt() else 0xFFffffff.toInt()
+        val textLog = if (isDarkTheme) 0xFFcccccc.toInt() else 0xFF000000.toInt()
 
-        // Фон всего окна
+        // Общий фон
         scrollView.setBackgroundColor(bgColor)
         mainLayout.setBackgroundColor(bgColor)
 
-        // Фон и цвет текста для логов
-        if (isDarkTheme) {
-            tvLog.setBackgroundColor(0xFF0d0d0d.toInt())
-            tvLog.setTextColor(0xFFcccccc.toInt())
-            tvLogsLabel.setTextColor(0xFFcccccc.toInt())
-        } else {
-            tvLog.setBackgroundColor(0xFFffffff.toInt())
-            tvLog.setTextColor(0xFF000000.toInt())
-            tvLogsLabel.setTextColor(0xFF000000.toInt())
-        }
+        // Специфические для логов
+        tvLog.setBackgroundColor(bgLog)
+        tvLog.setTextColor(textLog)
+        tvLogsLabel.setTextColor(textColor)
 
-        // Рекурсивно применяем тему ко всем дочерним элементам
+        // Рекурсивно применяем ко всем дочерним элементам (меняем текст у всех View)
         applyThemeToView(mainLayout, bgColor, textColor, hintColor, bgEditText, bgButton, bgGroup)
 
+        // Дополнительно применяем фон для кнопок (рекурсивный обход пропускает их)
+        applyButtonBackgrounds(bgButton)
+
+        // Обновляем Spinner
+        updateSpinnerAdapter()
+
+        // Обновляем статус
         updateUI(isConnected)
     }
 
@@ -360,45 +389,24 @@ class MainActivity : AppCompatActivity() {
         when (view) {
             is TextView -> {
                 view.setTextColor(textColor)
-                // Заголовки групп
-                if (view.text.toString().contains("Server Connection") ||
-                    view.text.toString().contains("Enabled Capabilities") ||
-                    view.text.toString().contains("Send to Device") ||
-                    view.text.toString() == "Logs") {
-                    view.setTextColor(textColor)
-                }
             }
             is EditText -> {
                 view.setTextColor(textColor)
-                view.setBackgroundColor(bgEditText)
                 view.setHintTextColor(hintColor)
+                view.setBackgroundColor(bgEditText)
             }
             is Button -> {
                 view.setTextColor(textColor)
-                view.setBackgroundColor(bgButton)
+                // Фон кнопок не меняем здесь, чтобы не перезаписывать
+                // Используем отдельный метод для фона кнопок
             }
             is CheckBox -> {
                 view.setTextColor(textColor)
             }
             is Spinner -> {
-                // Для Spinner пересоздаём адаптер
-                val position = view.selectedItemPosition
-                val items = substatuses.toList()
-                val adapter = ArrayAdapter(
-                    this,
-                    android.R.layout.simple_spinner_item,
-                    items
-                )
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                view.adapter = adapter
-                if (position >= 0 && position < items.size) {
-                    view.setSelection(position)
-                }
-                // Устанавливаем фон спиннера
-                view.setBackgroundColor(bgEditText)
+                // Не обрабатываем здесь, т.к. адаптер обновляется отдельно
             }
             is LinearLayout -> {
-                // Устанавливаем фон для групп (groupCapabilities)
                 if (view.id == R.id.groupCapabilities) {
                     view.setBackgroundColor(bgGroup)
                     view.setPadding(16, 16, 16, 16)
@@ -416,6 +424,17 @@ class MainActivity : AppCompatActivity() {
                     bgColor, textColor, hintColor, bgEditText, bgButton, bgGroup
                 )
             }
+        }
+    }
+
+    private fun applyButtonBackgrounds(bgButton: Int) {
+        // Список всех кнопок, которым нужно применить фон
+        val buttons = listOf(
+            btnConnect, btnOpenPanel, btnToggleFeatures, btnToggleLogs,
+            btnToggleTheme, btnOpenLogs, btnUpdateStatus, btnSendToDevice
+        )
+        buttons.forEach { button ->
+            button.setBackgroundColor(bgButton)
         }
     }
 
