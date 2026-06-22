@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.IBinder
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -131,7 +132,6 @@ class YukiService : Service() {
         }
         client.onLog = { log ->
             android.util.Log.d("YukiService", log)
-            // записываем в файловый логгер, если есть
             Logger.info(log)
         }
         client.onCommandReceived = { command, params ->
@@ -140,11 +140,9 @@ class YukiService : Service() {
         // Обработка команд от других устройств (аналог PC-клиента)
         client.onDeviceCommand = { fromDevice, command, payload ->
             android.util.Log.d("YukiService", "Device command from $fromDevice: $command")
-            // Аналог switch в PC-клиенте
             when (command?.lowercase()) {
                 "show_message" -> {
                     val message = payload.get("message")?.asString ?: "No message"
-                    // Показываем Toast (или уведомление)
                     runOnUiThread {
                         Toast.makeText(
                             applicationContext,
@@ -154,8 +152,6 @@ class YukiService : Service() {
                     }
                 }
                 "get_status" -> {
-                    // Отправляем ответ обратно (это уже делается автоматически при require_response)
-                    // Но если require_response=false, мы всё равно можем ответить
                     client.sendMessage(
                         YukiProtocol.deviceToDeviceMessage(
                             deviceId, fromDevice, "status_response",
@@ -186,7 +182,8 @@ class YukiService : Service() {
     private fun sendStatusBroadcast(connected: Boolean) {
         val intent = Intent("YUKI_STATUS_UPDATE")
         intent.putExtra("connected", connected)
-        sendBroadcast(intent)
+        // Используем LocalBroadcastManager для внутриприложенных сообщений
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     private fun savePreferences(serverUrl: String, deviceId: String, authToken: String?) {

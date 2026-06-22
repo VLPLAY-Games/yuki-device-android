@@ -134,8 +134,12 @@ class YukiClient(
                 "welcome" -> {
                     onLog?.invoke("Welcome received")
                     isAuthorized = true
+                    // Уведомляем UI о полном подключении
+                    onStatusChanged?.invoke(true)
+                    // Отправляем статус и extended статус
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
-                    sendMessage(YukiProtocol.extendedStatusMessage(deviceId, substatus = substatus))
+                    sendMessage(YukiProtocol.extendedStatusMessage(deviceId, status = "online", substatus = substatus))
+                    onLog?.invoke("Status and extended status sent")
                     startPeriodicTasks()
                 }
 
