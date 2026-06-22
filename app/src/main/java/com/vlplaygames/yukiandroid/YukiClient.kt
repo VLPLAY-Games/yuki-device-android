@@ -40,6 +40,9 @@ class YukiClient(
 
     fun connect(serverUrl: String) {
         this.serverUrl = serverUrl
+        // Автоматически добавляем /device, если его нет
+        val fullUrl = if (serverUrl.endsWith("/device")) serverUrl else "$serverUrl/device"
+
         if (isConnected) {
             onLog?.invoke("Already connected")
             return
@@ -50,7 +53,7 @@ class YukiClient(
             .build()
 
         val request = Request.Builder()
-            .url(serverUrl)
+            .url(fullUrl)
             .build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
@@ -134,9 +137,7 @@ class YukiClient(
                 "welcome" -> {
                     onLog?.invoke("Welcome received")
                     isAuthorized = true
-                    // Уведомляем UI о полном подключении
                     onStatusChanged?.invoke(true)
-                    // Отправляем статус и extended статус
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
                     sendMessage(YukiProtocol.extendedStatusMessage(deviceId, status = "online", substatus = substatus))
                     onLog?.invoke("Status and extended status sent")
@@ -170,7 +171,6 @@ class YukiClient(
 
                     onDeviceCommand?.invoke(from, cmd, cmdPayload)
 
-                    // Если требуется ответ, отправляем результат
                     if (requireResponse) {
                         scope.launch {
                             val (success, result, error) = CommandHandler.execute(cmd, cmdPayload)
