@@ -23,12 +23,15 @@ class YukiService : Service() {
         const val EXTRA_SERVER_URL = "SERVER_URL"
         const val EXTRA_DEVICE_ID = "DEVICE_ID"
         const val EXTRA_AUTH_TOKEN = "AUTH_TOKEN"
+        const val EXTRA_CAPABILITIES = "CAPABILITIES"
     }
 
     private lateinit var client: YukiClient
     private var serverUrl: String = ""
     private var deviceId: String = ""
     private var authToken: String? = null
+    // Fail closed: only capabilities explicitly passed from the UI's checkboxes are enabled.
+    private var capabilities: List<String> = emptyList()
 
     override fun onCreate() {
         super.onCreate()
@@ -44,6 +47,7 @@ class YukiService : Service() {
                     serverUrl = it.getStringExtra(EXTRA_SERVER_URL) ?: ""
                     deviceId = it.getStringExtra(EXTRA_DEVICE_ID) ?: "android-${Build.MODEL}"
                     authToken = it.getStringExtra(EXTRA_AUTH_TOKEN)
+                    capabilities = it.getStringArrayListExtra(EXTRA_CAPABILITIES) ?: emptyList()
 
                     if (serverUrl.isNotEmpty() && deviceId.isNotEmpty()) {
                         savePreferences(serverUrl, deviceId, authToken)
@@ -124,7 +128,7 @@ class YukiService : Service() {
         if (::client.isInitialized) {
             client.disconnect()
         }
-        client = YukiClient(deviceId, authToken)
+        client = YukiClient(deviceId, authToken, capabilities)
         client.onStatusChanged = { connected ->
             val statusText = if (connected) "Connected" else "Disconnected"
             updateNotification(statusText)

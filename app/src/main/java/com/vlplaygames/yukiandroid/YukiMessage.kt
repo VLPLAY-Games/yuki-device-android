@@ -5,12 +5,12 @@ import com.google.gson.annotations.SerializedName
 import java.util.UUID
 
 /**
- * Базовое сообщение протокола Yuki v1.1
+ * Базовое сообщение протокола Yuki v1.0
  * Полностью соответствует Python-классу YukiMessage
  */
 data class YukiMessage(
     @SerializedName("protocol")
-    val protocol: String = "yuki/1.1",
+    val protocol: String = "yuki/1.0",
 
     @SerializedName("type")
     val type: String,

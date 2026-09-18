@@ -22,13 +22,9 @@
         android:name="android.hardware.camera.flash"
         android:required="false" />
 
-    <!-- ===== НАСТРОЙКИ (для чтения яркости) ===== -->
-    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-
+    <!-- TODO: tighten via network_security_config.xml if the operator enables TLS on the server side -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.YukiAndroid"

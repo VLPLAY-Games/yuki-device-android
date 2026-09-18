@@ -27,6 +27,10 @@ class YukiClient(
     private var reconnectJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val gson = Gson()
+    // Source of truth for what the server is allowed to invoke; mirrors YukiClient.cs's _enabledCapabilities check.
+    private val enabledCapabilities: Set<String> = capabilities.map { it.lowercase() }.toSet()
+
+    private fun isCapabilityEnabled(command: String): Boolean = enabledCapabilities.contains(command.lowercase())
 
     var substatus: String = "idle"
 
@@ -171,6 +175,17 @@ class YukiClient(
 
                     onDeviceCommand?.invoke(from, cmd, cmdPayload)
 
+                    if (!isCapabilityEnabled(cmd)) {
+                        onLog?.invoke("Device command '$cmd' from $from rejected: disabled by user")
+                        if (requireResponse) {
+                            val responseMsg = YukiProtocol.deviceResponseMessage(
+                                id, deviceId, from, false, null, "Command disabled by user"
+                            )
+                            sendMessage(responseMsg)
+                        }
+                        return
+                    }
+
                     if (requireResponse) {
                         scope.launch {
                             val (success, result, error) = CommandHandler.execute(cmd, cmdPayload)
@@ -220,6 +235,12 @@ class YukiClient(
     }
 
     private fun executeCommand(cmdId: String, command: String, params: JsonObject) {
+        if (!isCapabilityEnabled(command)) {
+            onLog?.invoke("Command '$command' rejected: disabled by user")
+            val response = YukiProtocol.commandResultMessage(cmdId, false, null, "Command disabled by user")
+            sendMessage(response)
+            return
+        }
         scope.launch {
             val (success, result, error) = CommandHandler.execute(command, params)
             val response = YukiProtocol.commandResultMessage(cmdId, success, result, error)

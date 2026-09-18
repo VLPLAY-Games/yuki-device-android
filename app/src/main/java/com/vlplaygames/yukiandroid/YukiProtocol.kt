@@ -5,7 +5,7 @@ import com.google.gson.JsonPrimitive
 import com.google.gson.JsonArray
 
 /**
- * Фабрика сообщений Yuki Protocol v1.1
+ * Фабрика сообщений Yuki Protocol v1.0
  * Все методы возвращают YukiMessage, готовый к отправке.
  * Поля именуются в snake_case через @SerializedName в YukiMessage.
  */

@@ -52,8 +52,11 @@ object CommandHandler {
             when (command.lowercase()) {
                 "open_browser", "open_url" -> {
                     val url = params.get("url")?.asString ?: "https://www.google.com"
-                    openBrowser(url)
-                    Triple(true, mapOf("opened" to url), null)
+                    if (openBrowser(url)) {
+                        Triple(true, mapOf("opened" to url), null)
+                    } else {
+                        Triple(false, null, "Refused to open non-http(s) URL")
+                    }
                 }
 
                 "show_notification" -> {
@@ -144,11 +147,27 @@ object CommandHandler {
 
     // ============ РЕАЛИЗАЦИЯ КОМАНД ============
 
-    private fun openBrowser(url: String) {
-        val ctx = appContext ?: return
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+    /**
+     * Возвращает false (и ничего не запускает) для любой схемы, кроме http/https, чтобы сервер
+     * не мог подсунуть intent:// или другую custom-схему для атаки на сторонние приложения.
+     */
+    private fun openBrowser(url: String): Boolean {
+        val ctx = appContext ?: return false
+        val uri = try {
+            Uri.parse(url)
+        } catch (e: Exception) {
+            Log.e("CommandHandler", "Failed to parse URL: ${e.message}")
+            return false
+        }
+        val scheme = uri.scheme
+        if (scheme == null || !(scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true))) {
+            Log.w("CommandHandler", "Rejected open_browser for disallowed scheme: $scheme")
+            return false
+        }
+        val intent = Intent(Intent.ACTION_VIEW, uri)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ctx.startActivity(intent)
+        return true
     }
 
     private fun showNotification(title: String, body: String) {

@@ -219,6 +219,7 @@ class MainActivity : AppCompatActivity() {
                 intent.putExtra(YukiService.EXTRA_SERVER_URL, server)
                 intent.putExtra(YukiService.EXTRA_DEVICE_ID, device)
                 intent.putExtra(YukiService.EXTRA_AUTH_TOKEN, token)
+                intent.putStringArrayListExtra(YukiService.EXTRA_CAPABILITIES, ArrayList(capabilities))
                 startService(intent)
 
                 btnConnect.text = "Disconnect"
