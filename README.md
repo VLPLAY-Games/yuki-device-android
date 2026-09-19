@@ -30,5 +30,13 @@ Flashlight/torch control, volume, notifications, screen brightness (read-only), 
 ## Protocol
 
 Implements Yuki Protocol `yuki/1.0` directly in Kotlin (`YukiMessage.kt`/`YukiProtocol.kt`) rather
-than vendoring a copy from [`yuki-protocol`](../yuki-protocol) - keep it in sync by hand when the
-protocol changes.
+than pulling in [`yuki-protocol`](../yuki-protocol) as a submodule (Gradle/Android has no natural
+place to mount one) - the reference copy lives at `yuki-protocol/kotlin/`, keep this one in sync by
+hand when either changes. Uses the legacy handshake (token sent directly in `hello`); `yuki-core`
+also supports a challenge-response handshake that keeps the token off the wire entirely, which this
+client doesn't use yet.
+
+## License
+
+GNU General Public License v3.0 (GPLv3), same as the rest of the Yuki ecosystem - see
+[yuki-system](https://github.com/VLPLAY-Games/yuki-system) for details.
