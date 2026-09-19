@@ -181,6 +181,8 @@ class YukiService : Service() {
         }
         updateNotification("Disconnected")
         sendStatusBroadcast(false)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun sendStatusBroadcast(connected: Boolean) {
