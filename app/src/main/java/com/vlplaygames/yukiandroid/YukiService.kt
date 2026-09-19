@@ -33,6 +33,10 @@ class YukiService : Service() {
     // Fail closed: only capabilities explicitly passed from the UI's checkboxes are enabled.
     private var capabilities: List<String> = emptyList()
 
+    // True when we intentionally stop the service (user pressed Disconnect / Force Disconnect).
+    // Prevents onDestroy from calling disconnect() again and prevents START_STICKY from reviving us.
+    private var isDisconnecting = false
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -49,21 +53,28 @@ class YukiService : Service() {
                     authToken = it.getStringExtra(EXTRA_AUTH_TOKEN)
                     capabilities = it.getStringArrayListExtra(EXTRA_CAPABILITIES) ?: emptyList()
 
+                    // Пользователь снова хочет подключиться
+                    isDisconnecting = false
+
                     if (serverUrl.isNotEmpty() && deviceId.isNotEmpty()) {
                         savePreferences(serverUrl, deviceId, authToken)
                         connect()
                     }
                 }
                 ACTION_DISCONNECT -> {
+                    isDisconnecting = true
                     disconnect()
                 }
                 ACTION_FORCE_DISCONNECT -> {
+                    isDisconnecting = true
                     if (::client.isInitialized) {
                         client.forceDisconnect()
-                        client = YukiClient("", null) // сброс
+                        client = YukiClient("", null)
                     }
                     updateNotification("Disconnected")
                     sendStatusBroadcast(false)
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
                 }
                 "ACTION_UPDATE_SUBSTATUS" -> {
                     val substatus = it.getStringExtra("SUBSTATUS") ?: "idle"
@@ -93,7 +104,10 @@ class YukiService : Service() {
                 }
             }
         }
-        return START_STICKY
+
+        // Если пользователь отключился — не даём Android'у перезапустить сервис.
+        // Иначе — START_STICKY (стандартное поведение фонового сервиса).
+        return if (isDisconnecting) START_NOT_STICKY else START_STICKY
     }
 
     private fun payloadToMap(json: JsonObject): Map<String, Any> {
@@ -141,7 +155,6 @@ class YukiService : Service() {
         client.onCommandReceived = { command, params ->
             android.util.Log.d("YukiService", "Command received: $command")
         }
-        // Обработка команд от других устройств (аналог PC-клиента)
         client.onDeviceCommand = { fromDevice, command, payload ->
             android.util.Log.d("YukiService", "Device command from $fromDevice: $command")
             when (command?.lowercase()) {
@@ -188,7 +201,6 @@ class YukiService : Service() {
     private fun sendStatusBroadcast(connected: Boolean) {
         val intent = Intent("YUKI_STATUS_UPDATE")
         intent.putExtra("connected", connected)
-        // Используем LocalBroadcastManager для внутриприложенных сообщений
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
@@ -211,7 +223,12 @@ class YukiService : Service() {
     }
 
     override fun onDestroy() {
-        disconnect()
+        // Если сервис убит системой (не пользователем) — корректно закрываем клиент.
+        // Если это наш собственный stopSelf() — НЕ вызываем disconnect() повторно,
+        // иначе будет рекурсия stopSelf() -> onDestroy() -> disconnect() -> stopSelf().
+        if (!isDisconnecting && ::client.isInitialized) {
+            client.disconnect()
+        }
         super.onDestroy()
     }
 

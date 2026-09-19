@@ -27,8 +27,11 @@ class YukiClient(
     private var reconnectJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val gson = Gson()
-    // Source of truth for what the server is allowed to invoke; mirrors YukiClient.cs's _enabledCapabilities check.
     private val enabledCapabilities: Set<String> = capabilities.map { it.lowercase() }.toSet()
+
+    // True when the user explicitly pressed disconnect / force disconnect.
+    // Prevents onClosed/onFailure from scheduling an automatic reconnect.
+    private var manualDisconnect = false
 
     private fun isCapabilityEnabled(command: String): Boolean = enabledCapabilities.contains(command.lowercase())
 
@@ -44,7 +47,9 @@ class YukiClient(
 
     fun connect(serverUrl: String) {
         this.serverUrl = serverUrl
-        // Автоматически добавляем /device, если его нет
+        // Сбрасываем флаг — пользователь снова хочет подключиться
+        manualDisconnect = false
+
         val fullUrl = if (serverUrl.endsWith("/device")) serverUrl else "$serverUrl/device"
 
         if (isConnected) {
@@ -90,7 +95,11 @@ class YukiClient(
     }
 
     fun disconnect() {
+        // Помечаем как ручное отключение ДО закрытия сокета,
+        // чтобы onClosed не запланировал реконнект
+        manualDisconnect = true
         reconnectJob?.cancel()
+        reconnectJob = null
         scope.coroutineContext.cancelChildren()
         webSocket?.close(1000, "User disconnect")
         webSocket = null
@@ -101,7 +110,9 @@ class YukiClient(
     }
 
     fun forceDisconnect() {
+        manualDisconnect = true
         reconnectJob?.cancel()
+        reconnectJob = null
         scope.coroutineContext.cancelChildren()
         webSocket?.cancel()
         webSocket = null
@@ -250,25 +261,21 @@ class YukiClient(
 
     private fun startPeriodicTasks() {
         scope.launch {
-            while (isConnected && isAuthorized) {
+            while (isConnected && isAuthorized && !manualDisconnect) {
                 delay(30_000)
-                if (isConnected && isAuthorized) {
+                if (isConnected && isAuthorized && !manualDisconnect) {
                     sendMessage(YukiProtocol.statusMessage(deviceId, "online"))
                     sendExtendedStatus()
                 }
                 delay(30_000)
-                if (isConnected && isAuthorized) {
+                if (isConnected && isAuthorized && !manualDisconnect) {
                     sendMetrics()
                 }
             }
         }
     }
 
-    /**
-     * Отправить расширенный статус с информацией о CPU, RAM и батарее
-     */
     private fun sendExtendedStatus() {
-        val systemInfo = CommandHandler.getSystemInfo()
         val details = mutableMapOf<String, Any>(
             "battery" to CommandHandler.getBatteryLevel(),
             "battery_charging" to CommandHandler.isCharging(),
@@ -305,10 +312,12 @@ class YukiClient(
     }
 
     private fun scheduleReconnect() {
+        // Никогда не переподключаемся автоматически после ручного disconnect
+        if (manualDisconnect) return
         if (reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
             delay(5_000)
-            if (!isConnected && serverUrl.isNotEmpty()) {
+            if (!isConnected && !manualDisconnect && serverUrl.isNotEmpty()) {
                 onLog?.invoke("Reconnecting...")
                 connect(serverUrl)
             }
